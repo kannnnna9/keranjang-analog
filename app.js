@@ -38,10 +38,20 @@ let sessionHistory   = [];      // riwayat sesi
 let itemCounter      = 0;       // auto-name "Item N" per sesi
 
 // load
-try { cart = JSON.parse(localStorage.getItem(CART_KEY) || '[]'); } catch {}
+try {
+  cart = JSON.parse(localStorage.getItem(CART_KEY) || '[]');
+} catch (e) {
+  console.error('Gagal memuat data keranjang — data direset:', e);
+  cart = [];
+  try { localStorage.removeItem(CART_KEY); } catch (_) { /* storage inaccessible */ }
+}
 try {
   sessionHistory = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-} catch {}
+} catch (e) {
+  console.error('Gagal memuat riwayat belanja — data direset:', e);
+  sessionHistory = [];
+  try { localStorage.removeItem(HISTORY_KEY); } catch (_) { /* storage inaccessible */ }
+}
 isFirstOpen = !localStorage.getItem(FIRST_KEY);
 
 // ═══════════════════════════════════════════════
@@ -51,7 +61,14 @@ const $   = id => document.getElementById(id);
 const fmt = n  => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(n);
 const esc = s  => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-function persist() { try { localStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch {} }
+function persist() {
+  try {
+    localStorage.setItem(CART_KEY, JSON.stringify(cart));
+  } catch (e) {
+    console.error('Gagal menyimpan keranjang:', e);
+    toast('⚠ Penyimpanan penuh — data mungkin tidak tersimpan');
+  }
+}
 
 function toast(msg, dur = 2800) {
   clearTimeout(toastTimer);
@@ -109,7 +126,8 @@ async function initTesseract() {
     finishInit(true);
   } catch(e) {
     clearTimeout(timer);
-    console.error(e);
+    console.error('Gagal menginisialisasi Tesseract:', e);
+    $('init-label').textContent = 'OCR gagal dimuat';
     finishInit(false);
   }
 }
@@ -120,6 +138,7 @@ function finishInit(ocrReady) {
     $('init-overlay').classList.add('off');
     renderCart();
     goTo('pg-cart');
+    if (!ocrReady) toast('⚠ OCR tidak tersedia — gunakan input manual', 4000);
   }, 300);
 }
 
@@ -136,8 +155,12 @@ async function startCam() {
     $('cap-btn').disabled = false;
     startQualityCheck();
   } catch(e) {
+    console.error('Gagal mengakses kamera:', e);
     stopCam(); goTo('pg-cart');
-    toast(e.name === 'NotAllowedError' ? '⚠ Izin kamera ditolak' : '⚠ Kamera tidak bisa diakses');
+    if (e.name === 'NotAllowedError') toast('⚠ Izin kamera ditolak');
+    else if (e.name === 'NotFoundError') toast('⚠ Kamera tidak ditemukan');
+    else if (e.name === 'NotReadableError') toast('⚠ Kamera sedang dipakai aplikasi lain');
+    else toast('⚠ Kamera tidak bisa diakses: ' + (e.message || e.name));
   }
 }
 
@@ -221,7 +244,9 @@ function startQualityCheck() {
         // Auto-lock dihapus — penjepretan kini manual (tombol shutter) + koreksi perspektif.
         // measureSharpness tetap dipakai hanya untuk indikator kualitas di atas.
       }
-    } catch {}
+    } catch (e) {
+      console.warn('Quality check error:', e);
+    }
   }, 450);
 }
 
@@ -291,9 +316,14 @@ $('fab-demo').addEventListener('click', () => {
 
 async function handleGalleryTest(file) {
   const img = new Image();
-  img.onload = () => runGalleryImage(img, img.naturalWidth, img.naturalHeight);
-  img.onerror = () => toast('⚠ Gagal memuat gambar');
-  img.src = URL.createObjectURL(file);
+  const objUrl = URL.createObjectURL(file);
+  img.onload = () => {
+    URL.revokeObjectURL(objUrl);
+    runGalleryImage(img, img.naturalWidth, img.naturalHeight)
+      .catch(e => { console.error('Gagal memproses gambar galeri:', e); toast('⚠ Gagal memproses gambar'); });
+  };
+  img.onerror = () => { URL.revokeObjectURL(objUrl); toast('⚠ Gagal memuat gambar'); };
+  img.src = objUrl;
 }
 
 async function handleDemoTest() {
@@ -308,7 +338,10 @@ async function handleDemoTest() {
   g.fillStyle = '#000'; g.font = 'bold 56px sans-serif';
   g.fillText('MIE INSTAN', 300, 270);
   const img = new Image();
-  img.onload = () => runGalleryImage(img, c.width, c.height);
+  img.onload = () => {
+    runGalleryImage(img, c.width, c.height)
+      .catch(e => { console.error('Gagal memproses demo:', e); toast('⚠ Gagal memproses demo'); });
+  };
   img.src = c.toDataURL('image/png');
 }
 
@@ -407,7 +440,9 @@ async function doCapture() {
 // Batalkan OCR yang sedang berjalan → matikan worker, balik ke kamera, siapkan ulang worker
 window.cancelOCR = async () => {
   ocrJobId++;                                  // invalidasi job berjalan agar hasilnya tak dirender
-  try { await tessWorker?.terminate(); } catch {}
+  try { await tessWorker?.terminate(); } catch (e) {
+    console.warn('Gagal menghentikan worker OCR:', e);
+  }
   tessWorker = null; tessReady = false;
   toast('Pemindaian dibatalkan');
   goTo('pg-cam'); startCam();                  // kembali ke kamera
@@ -639,7 +674,12 @@ window.delItem=id=>{ cart=cart.filter(i=>i.id!==id);renderCart(); };
 // SESSION & BUDGET
 // ═══════════════════════════════════════════════
 function saveHistory() {
-  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(sessionHistory.slice(0, MAX_HISTORY))); } catch {}
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(sessionHistory.slice(0, MAX_HISTORY)));
+  } catch (e) {
+    console.error('Gagal menyimpan riwayat:', e);
+    toast('⚠ Penyimpanan penuh — riwayat mungkin tidak tersimpan');
+  }
 }
 
 function closeModal(id) { $(id).classList.add('off'); }
@@ -931,7 +971,7 @@ window.exportCart = () => {
   if (navigator.clipboard) {
     navigator.clipboard.writeText(text)
       .then(() => toast('✓ Ringkasan disalin ke clipboard!'))
-      .catch(() => fallbackCopy(text));
+      .catch(e => { console.warn('Clipboard API gagal, pakai fallback:', e); fallbackCopy(text); });
   } else {
     fallbackCopy(text);
   }
@@ -988,7 +1028,9 @@ function setupPWA() {
           await Promise.all(keys.map(k => caches.delete(k)));
           localStorage.setItem('bc_sw_ver', CACHE_VER);
         }
-      } catch {}
+      } catch (e) {
+        console.warn('Gagal membersihkan cache lama:', e);
+      }
       const swCode = `const V='bc-v${APP_VERSION.slice(1)}';
 self.addEventListener('install',e=>{self.skipWaiting();});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==V).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
@@ -1004,7 +1046,9 @@ self.addEventListener('fetch',e=>{
     }).catch(()=>caches.match(e.request))
   );
 });`;
-      navigator.serviceWorker.register(URL.createObjectURL(new Blob([swCode],{type:'application/javascript'}))).catch(()=>{});
+      navigator.serviceWorker.register(URL.createObjectURL(new Blob([swCode],{type:'application/javascript'}))).catch(e => {
+        console.warn('Service worker gagal didaftarkan:', e);
+      });
     })();
   }
   window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e;$('install-banner').classList.add('show');});
