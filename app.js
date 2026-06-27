@@ -1030,7 +1030,8 @@ function init() {
 
   initTesseract();
 }
-document.readyState==='loading'
-  ? document.addEventListener('DOMContentLoaded',init)
-  : init();
-</script>
+if (document.readyState==='loading') {
+  document.addEventListener('DOMContentLoaded',init);
+} else {
+  init();
+}
