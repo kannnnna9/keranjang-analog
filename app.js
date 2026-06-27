@@ -1035,3 +1035,36 @@ if (document.readyState==='loading') {
 } else {
   init();
 }
+
+// ═══════════════════════════════════════════════
+// NODE EXPORTS (for unit testing only)
+// ═══════════════════════════════════════════════
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    fmt, esc, extractPrice, measureSharpness,
+    goTo, persist, toast, startSession, confirmEndSession,
+    checkBudgetAndAdd, directAddToCart, updateBudgetBar,
+    renderCart, saveHistory, closeModal, openSessionEnd,
+    renderHistory, renderHistoryItem, renderSessionStart,
+    cropCanvas, fillKeypadPrice,
+    get cart() { return cart; },
+    set cart(v) { cart = v; },
+    get sessionActive() { return sessionActive; },
+    set sessionActive(v) { sessionActive = v; },
+    get budget() { return budget; },
+    set budget(v) { budget = v; },
+    get sessionStartTime() { return sessionStartTime; },
+    set sessionStartTime(v) { sessionStartTime = v; },
+    get sessionHistory() { return sessionHistory; },
+    set sessionHistory(v) { sessionHistory = v; },
+    get itemCounter() { return itemCounter; },
+    set itemCounter(v) { itemCounter = v; },
+    get currentResult() { return currentResult; },
+    set currentResult(v) { currentResult = v; },
+    get currentQty() { return currentQty; },
+    set currentQty(v) { currentQty = v; },
+    get pendingCartItem() { return pendingCartItem; },
+    set pendingCartItem(v) { pendingCartItem = v; },
+    CART_KEY, HISTORY_KEY, MAX_HISTORY, APP_VERSION,
+  };
+}

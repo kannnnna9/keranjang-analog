@@ -1,0 +1,16 @@
+{
+  "name": "keranjang-analog",
+  "version": "1.0.0",
+  "description": "App pencatat belanja dengan scan kamera. Arahkan ke label harga, nanti terbaca sendiri. Tidak perlu internet — OCR jalan di perangkat, pakai Tesseract.js.",
+  "main": "app.js",
+  "scripts": {
+    "test": "jest --coverage"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
+  }
+}

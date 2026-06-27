@@ -6,3 +6,5 @@ claude.backup*
 claude.backup*
 CLAUDE.md
 index-backup.html
+node_modules/
+coverage/
