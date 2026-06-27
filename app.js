@@ -592,11 +592,11 @@ function renderCart() {
         </div>
         <div class="ci-r">
           <div class="qc">
-            <button onclick="cqty(${item.id},-1)">−</button>
+            <button class="ci-qty-btn" onclick="cqty(${item.id},-1)">−</button>
             <span class="qc-n">${item.qty}</span>
-            <button onclick="cqty(${item.id},1)">+</button>
+            <button class="ci-qty-btn" onclick="cqty(${item.id},1)">+</button>
           </div>
-          <span class="ci-sub">${fmt(item.price*item.qty)}</span>
+          <span class="ci-price">${fmt(item.price*item.qty)}</span>
           <button class="del" onclick="delItem(${item.id})">✕</button>
         </div>
       </div>`).join('');
