@@ -5,6 +5,13 @@ Semua perubahan penting pada proyek **Keranjang Analog** (sebelumnya "BelanjaCat
 Format mengikuti [Keep a Changelog](https://keepachangelog.com/),
 dan proyek ini menganut [Semantic Versioning](https://semver.org/).
 
+## [1.2.1] - 2026-06-28
+### Fixed
+- Versi tidak sinkron antara app.js (`v1.2.0`) dan index.html (`v.A18`)
+- Cache version `slice(1)` menghasilkan `'.2.0'` alih-alih versi bersih
+- Shadow `rgba(5,150,105,0.1)` tidak valid pada emoji bar
+- Tombol `-` qty tidak disabled saat quantity sudah 1
+
 ## [1.2.0] - 2026-06-27
 ### Added
 - UI Claymorphism "Pasar Pagi" — palet hijau segar, font Rubik + Nunito Sans

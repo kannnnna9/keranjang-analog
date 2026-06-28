@@ -7,7 +7,7 @@ const CART_KEY     = 'bc_cart_v3';
 const FIRST_KEY    = 'bc_first_open_v2';
 const HISTORY_KEY  = 'bc_history_v1';
 const MAX_HISTORY  = 100;
-const APP_VERSION  = '1.2.0';   // satu-satunya sumber versi → ubah di sini saja
+const APP_VERSION  = '1.2.1';   // satu-satunya sumber versi → ubah di sini saja
 
 // ═══════════════════════════════════════════════
 // STATE
@@ -534,6 +534,7 @@ function renderSheet(state, errMsg) {
         <button class="btn-r" onclick="retryCapture()">↺ Ulang</button>
         <button class="btn-a" onclick="addToCart()">+ Tambah ke Keranjang</button>
       </div>`;
+    updateQtyBtnState();
   }
 }
 
@@ -551,7 +552,13 @@ window.adjQty = d => {
   const dn=$('qty-disp'), ds=$('sub-disp');
   if(dn) dn.textContent=currentQty;
   if(ds){ const p=parseInt(document.getElementById('edit-price')?.value)||currentResult?.price||0; ds.innerHTML=`Subtotal: <strong>${fmt(p*currentQty)}</strong>`; }
+  updateQtyBtnState();
 };
+
+function updateQtyBtnState() {
+  const btns = document.querySelectorAll('.qty-big');
+  if (btns[0]) btns[0].disabled = currentQty <= 1;
+}
 window.addToCart = () => {
   let name    = document.getElementById('edit-name')?.value.trim();
   const price = parseInt(document.getElementById('edit-price')?.value)||0;
@@ -977,7 +984,7 @@ function setupPWA() {
   ml.href=URL.createObjectURL(new Blob([JSON.stringify({name:'Keranjang Analog',short_name:'Keranjang Analog',start_url:'./',display:'standalone',background_color:'#0d0f14',theme_color:'#0d0f14',orientation:'portrait-primary',icons:[{src:iconUrl,sizes:'192x192',type:'image/png'},{src:iconUrl,sizes:'512x512',type:'image/png',purpose:'any maskable'}]})],{type:'application/json'}));
   document.head.appendChild(ml);
   if('serviceWorker' in navigator){
-    const CACHE_VER = 'bc-v' + APP_VERSION.slice(1);   // sumber tunggal: APP_VERSION
+    const CACHE_VER = 'bc-v121';   // sumber tunggal: APP_VERSION
     (async () => {
       // Version check saat app load: jika versi cache tersimpan ≠ APP_VERSION,
       // hapus SEMUA cache lama sebelum daftarkan SW baru
