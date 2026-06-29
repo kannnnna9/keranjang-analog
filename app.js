@@ -61,6 +61,50 @@ function toast(msg, dur = 2800) {
   toastTimer = setTimeout(() => el.classList.remove('show'), dur);
 }
 
+// ── Cart aggregation ──
+function getCartTotal() { return cart.reduce((s, i) => s + i.price * i.qty, 0); }
+function getCartCount() { return cart.reduce((s, i) => s + i.qty, 0); }
+
+// ── Scan state reset ──
+function resetScanState(full) {
+  currentResult = null;
+  currentQty = 1;
+  cropPriceUrl = '';
+  if (full) capturedImg = '';
+}
+
+// ── Grayscale conversion (ITU-R BT.601 luma) ──
+function toGray(r, g, b) { return 0.299 * r + 0.587 * g + 0.114 * b; }
+
+// ── Date/time formatting helpers ──
+function fmtTime(date) {
+  return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+}
+function fmtDateLong(date) {
+  return date.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+function fmtDateShort(date) {
+  return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+// ── Modal open/close/dismiss ──
+function openModal(id) { $(id).classList.remove('off'); }
+function closeModal(id) { $(id).classList.add('off'); }
+function setupModalDismiss(id) {
+  $(id).addEventListener('click', e => { if (e.target === $(id)) closeModal(id); });
+}
+
+// ── Shared item-list HTML renderer ──
+function renderItemListHtml(items) {
+  return items.map(it => {
+    const sub = it.subtotal != null ? it.subtotal : it.price * it.qty;
+    return `<div class="hi-detail-item">
+      <span class="hi-detail-name">${esc(it.name)} ×${it.qty}</span>
+      <span class="hi-detail-price">${fmt(sub)}</span>
+    </div>`;
+  }).join('');
+}
+
 // ═══════════════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════════════
@@ -196,7 +240,7 @@ function startQualityCheck() {
       const gray = new Float32Array(w*h);
       let sum = 0;
       for (let i=0,p=0; i<d.length; i+=4,p++) {
-        const g = 0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
+        const g = toGray(d[i], d[i+1], d[i+2]);
         gray[p] = g; sum += g;
       }
       const avg   = sum/(w*h);
@@ -260,7 +304,7 @@ function mapScanBoxToVideo() {
 $('fab').addEventListener('click', () => {
   if (!sessionActive) { openBudgetModal(); return; }
   if (!tessReady) { toast('⚠ OCR belum siap'); return; }
-  currentResult=null; currentQty=1; capturedImg=''; cropPriceUrl='';
+  resetScanState(true);
   goTo('pg-cam');
   startCam();
 });
@@ -315,7 +359,7 @@ async function handleDemoTest() {
 // Runner galeri/demo: crop zona harga template → OCR sekali (PSM 6)
 async function runGalleryImage(img, vw, vh) {
   if (!vw || !vh) { toast('⚠ Gambar tidak valid'); return; }
-  currentResult = null; currentQty = 1; cropPriceUrl = '';
+  resetScanState(false);
   const myJob = ++ocrJobId;
   const canvas = $('canvas');
   canvas.width = vw; canvas.height = vh;
@@ -343,7 +387,7 @@ async function runGalleryImage(img, vw, vh) {
 }
 
 function openManualDirect() {
-  currentResult=null; currentQty=1;
+  resetScanState(false);
   $('prev-img').src='data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=';
   goTo('pg-prev');
   renderSheet('keypad');
@@ -446,7 +490,7 @@ function cropCanvas(srcCtx, vw, vh, x, y, w, h, enhance) {
   const pd = upCtx.getImageData(0, 0, up.width, up.height);
   const d  = pd.data;
   for (let i = 0; i < d.length; i += 4) {
-    const gray = Math.round(0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2]);
+    const gray = Math.round(toGray(d[i], d[i+1], d[i+2]));
     const adj  = Math.max(0, Math.min(255, Math.round(1.5 * (gray - 128) + 128)));
     d[i] = d[i+1] = d[i+2] = adj;
     d[i+3] = 255;
@@ -544,7 +588,7 @@ function renderSheet(state, errMsg) {
 window.goCart = () => { renderCart(); goTo('pg-cart'); };
 window.retryCapture = () => {
   if (!sessionActive) { goTo('pg-cart'); return; }
-  currentResult=null; currentQty=1; cropPriceUrl='';
+  resetScanState(false);
   goTo('pg-cam'); startCam();
 };
 window.adjQty = d => {
@@ -592,8 +636,8 @@ function fillKeypadPrice(price) {
 // CART RENDER
 // ═══════════════════════════════════════════════
 function renderCart() {
-  const total=cart.reduce((s,i)=>s+i.price*i.qty,0);
-  const count=cart.reduce((s,i)=>s+i.qty,0);
+  const total=getCartTotal();
+  const count=getCartCount();
   $('badge').textContent=count+' item';
   $('total-amt').textContent=fmt(total);
   $('total-bar').classList.toggle('off',cart.length===0);
@@ -649,30 +693,26 @@ function saveHistory() {
   try { localStorage.setItem(HISTORY_KEY, JSON.stringify(sessionHistory.slice(0, MAX_HISTORY))); } catch {}
 }
 
-function closeModal(id) { $(id).classList.add('off'); }
-
 // ── Budget modal ──
 function openBudgetModal() {
   $('budget-inp').value = budget > 0 ? budget : '';
-  $('modal-budget').classList.remove('off');
+  openModal('modal-budget');
   setTimeout(() => $('budget-inp').focus(), 150);
 }
 
 $('budget-cancel').addEventListener('click', () => {
   // Lewati budget → mulai session tanpa budget
-  $('modal-budget').classList.add('off');
+  closeModal('modal-budget');
   startSession(0);
 });
 
 $('budget-save').addEventListener('click', () => {
   const val = parseInt($('budget-inp').value) || 0;
-  $('modal-budget').classList.add('off');
+  closeModal('modal-budget');
   startSession(val);
 });
 
-$('modal-budget').addEventListener('click', e => {
-  if (e.target === $('modal-budget')) closeModal('modal-budget');
-});
+setupModalDismiss('modal-budget');
 
 // ── Start session ──
 function startSession(budgetVal) {
@@ -715,7 +755,7 @@ let pendingCartItem = null;
 
 function checkBudgetAndAdd(item) {
   if (!sessionActive || budget <= 0) { directAddToCart(item); return; }
-  const currentTotal = cart.reduce((s,i) => s + i.price * i.qty, 0);
+  const currentTotal = getCartTotal();
   const newTotal     = currentTotal + item.price * item.qty;
   if (newTotal > budget) {
     const sisa = budget - currentTotal;
@@ -723,7 +763,7 @@ function checkBudgetAndAdd(item) {
     $('budget-warn-sub').innerHTML =
       `Kamu akan melebihi budget sebesar <strong style="color:var(--red)">${fmt(newTotal - budget)}</strong>.<br>
        Sisa budget sekarang: <strong>${fmt(Math.max(0,sisa))}</strong>`;
-    $('modal-budget-warn').classList.remove('off');
+    openModal('modal-budget-warn');
   } else {
     directAddToCart(item);
   }
@@ -733,7 +773,7 @@ function directAddToCart(item) {
   cart.push(item);
   renderCart(); persist();
   toast('✓ ' + item.name + ' ditambahkan');
-  currentResult = null; currentQty = 1;
+  resetScanState(false);
   goTo('pg-cart');
 }
 
@@ -750,14 +790,12 @@ $('btn-warn-cancel').addEventListener('click', () => {
 // ── Session end ──
 function openSessionEnd() {
   if (!sessionActive || cart.length === 0) return;
-  const total  = cart.reduce((s,i) => s + i.price * i.qty, 0);
-  const count  = cart.reduce((s,i) => s + i.qty, 0);
+  const total  = getCartTotal();
+  const count  = getCartCount();
   const sisa   = budget > 0 ? budget - total : null;
   const now    = new Date();
 
-  $('session-end-date').textContent =
-    now.toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'}) +
-    ' · ' + now.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+  $('session-end-date').textContent = fmtDateLong(now) + ' · ' + fmtTime(now);
   $('stat-total').textContent  = fmt(total);
   $('stat-items').textContent  = count + ' item';
 
@@ -771,18 +809,14 @@ function openSessionEnd() {
     $('stat-budget').className   = 'session-stat-val';
   }
 
-  $('session-end-list').innerHTML = cart.map(it =>
-    `<div class="hi-detail-item">
-      <span class="hi-detail-name">${esc(it.name)} ×${it.qty}</span>
-      <span class="hi-detail-price">${fmt(it.price * it.qty)}</span>
-    </div>`).join('');
+  $('session-end-list').innerHTML = renderItemListHtml(cart);
 
-  $('modal-session-end').classList.remove('off');
+  openModal('modal-session-end');
 }
 
 function confirmEndSession() {
-  const total = cart.reduce((s,i) => s + i.price * i.qty, 0);
-  const count = cart.reduce((s,i) => s + i.qty, 0);
+  const total = getCartTotal();
+  const count = getCartCount();
   const now   = new Date();
 
   const entry = {
@@ -837,7 +871,7 @@ function renderHistory() {
     let label;
     if (d.toDateString() === today) label = 'Hari Ini';
     else if (d.toDateString() === yesterday) label = 'Kemarin';
-    else label = d.toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'});
+    else label = fmtDateShort(d);
     if (!groups[label]) groups[label] = [];
     groups[label].push(s);
   });
@@ -851,7 +885,7 @@ function renderHistory() {
 
 function renderHistoryItem(s) {
   const sisa   = s.budget > 0 ? s.budget - s.total : null;
-  const time   = new Date(s.endTime).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+  const time   = fmtTime(new Date(s.endTime));
   let budgetBadge = '';
   if (sisa === null) budgetBadge = `<span class="hi-budget-badge none">Tanpa Budget</span>`;
   else if (sisa >= 0) budgetBadge = `<span class="hi-budget-badge ok">Hemat ${fmt(sisa)}</span>`;
@@ -866,10 +900,7 @@ function renderHistoryItem(s) {
     <div class="hi-meta">${s.itemCount} item · ${s.budget > 0 ? 'Budget ' + fmt(s.budget) : 'Tanpa Budget'}</div>
     <div class="hi-budget-row">${budgetBadge}</div>
     <div class="hi-detail off" id="hi-detail-${s.id}">
-      ${s.items.map(it => `<div class="hi-detail-item">
-        <span class="hi-detail-name">${esc(it.name)} ×${it.qty}</span>
-        <span class="hi-detail-price">${fmt(it.subtotal)}</span>
-      </div>`).join('')}
+      ${renderItemListHtml(s.items)}
       <button class="hi-del-btn" onclick="deleteSession('${s.id}',event)">🗑 Hapus Sesi Ini</button>
     </div>
   </div>`;
@@ -907,7 +938,7 @@ function renderSessionStart() {
 // SETTINGS
 // ═══════════════════════════════════════════════
 function openSettings() {
-  $('modal-settings').classList.remove('off');
+  openModal('modal-settings');
 }
 
 window.clearAllHistory = () => {
@@ -921,9 +952,8 @@ window.exportCart = () => {
   if (cart.length === 0) { toast('⚠ Keranjang masih kosong'); return; }
   const now  = new Date();
   const date = now.toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' });
-  const time = now.toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' });
-  const total = cart.reduce((s,i) => s + i.price * i.qty, 0);
-  const fmt   = n => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(n);
+  const time = fmtTime(now);
+  const total = getCartTotal();
 
   const lines = [
     '=== Keranjang Analog ===',
@@ -960,13 +990,13 @@ function fallbackCopy(text) {
 // SUMMARY
 // ═══════════════════════════════════════════════
 $('sum-btn').addEventListener('click',()=>{
-  const total=cart.reduce((s,i)=>s+i.price*i.qty,0);
+  const total=getCartTotal();
   $('sum-list').innerHTML=cart.map(it=>`<div class="sum-row"><span class="sum-n">${esc(it.name)} ×${it.qty}</span><span class="sum-p">${fmt(it.price*it.qty)}</span></div>`).join('');
   $('sum-total-val').textContent=fmt(total);
-  $('modal-sum').classList.remove('off');
+  openModal('modal-sum');
 });
-$('sum-close').addEventListener('click',()=>$('modal-sum').classList.add('off'));
-$('modal-sum').addEventListener('click',e=>{ if(e.target===$('modal-sum'))$('modal-sum').classList.add('off'); });
+$('sum-close').addEventListener('click',()=>closeModal('modal-sum'));
+setupModalDismiss('modal-sum');
 
 // ═══════════════════════════════════════════════
 // PWA
@@ -1031,9 +1061,7 @@ function init() {
 
   $('settings-btn').addEventListener('click', openSettings);
   $('history-btn').addEventListener('click', openHistory);
-  $('modal-settings').addEventListener('click', e => {
-    if (e.target === $('modal-settings')) $('modal-settings').classList.add('off');
-  });
+  setupModalDismiss('modal-settings');
 
   initTesseract();
 }
